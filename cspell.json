@@ -1,16 +1,9 @@
 {
-    "version": "0.2",
-    "ignorePaths": [],
-    "dictionaryDefinitions": [],
-    "dictionaries": [],
-    "words": [
-        "cloudscraper",
-        "dotenv",
-        "iframe",
-        "iframes",
-        "itemprop",
-        "lxml"
-    ],
-    "ignoreWords": [],
-    "import": []
+	"version": "0.2",
+	"ignorePaths": [],
+	"dictionaryDefinitions": [],
+	"dictionaries": [],
+	"words": [],
+	"ignoreWords": [],
+	"import": []
 }

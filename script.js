@@ -79,6 +79,9 @@ dotenv.config();
         }
     }
 
+    // TODO Generate proper output file's filename
+    // TODO Save in results folder
+
     stringify(validArticleURLs, {
         header: true, columns: {
             URL: 'URL',
