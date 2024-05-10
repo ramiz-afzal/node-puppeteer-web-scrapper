@@ -64,7 +64,7 @@ dotenv.config();
 		await _page.setExtraHTTPHeaders(userAgentHeaders);
 		await _page.goto(archiveURL);
 		await _page.setViewport({ width: 1080, height: 1024 });
-		await _page.waitForTimeout(10000);
+		await new Promise((r) => setTimeout(r, 10000));
 		await _page.waitForSelector('loc');
 		const _elements = await _page.$$('loc');
 
