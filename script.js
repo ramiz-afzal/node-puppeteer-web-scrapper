@@ -2,18 +2,67 @@ import puppeteer from 'puppeteer-extra';
 import pluginStealth from 'puppeteer-extra-plugin-stealth';
 import { executablePath } from 'puppeteer';
 import dotenv from 'dotenv';
-import { stringify } from 'csv-stringify';
-import fs from 'fs';
+import { promises as fs } from 'fs';
+import { exit } from 'process';
 
 // load .env variables
 dotenv.config();
 
-(async () => {
-	// output file name
-	let outPutDir = './results';
-	let fileName = `${Date.now()}-data.csv`;
-	let outPutFileName = `${outPutDir}/${fileName}`;
+/**
+ * @param {string} fileName
+ * @param {string} contents
+ * @param {string} [extension='txt']
+ * @returns {boolean} status
+ */
+async function saveAsFile(fileName, contents, extension = 'txt') {
+	if (!fileName || !contents || !extension) {
+		return false;
+	}
 
+	if (!fs || typeof fs.writeFile !== 'function') {
+		return false;
+	}
+
+	// sanitize file name
+	fileName = fileName
+		.replace(/[^a-z0-9]/gi, '_')
+		.toLowerCase()
+		.trim();
+
+	// sanitize file extension
+	extension.replace('.', '').trim();
+
+	let outPutDir = './results';
+	let outPutFileName = `${outPutDir}/${fileName}.${extension}`;
+
+	await fs.writeFile(outPutFileName, contents);
+
+	return true;
+}
+
+/**
+ * @param {string} fileName
+ * @returns {string[]|bool} data
+ */
+async function readFileAsCSV(fileName) {
+	if (!fileName) {
+		return false;
+	}
+
+	if (!fs || typeof fs.readFile !== 'function') {
+		return false;
+	}
+
+	let inPutDir = './source';
+	let inPutFileName = `${inPutDir}/${fileName}`;
+	let data = await fs.readFile(inPutFileName, 'utf-8');
+	return data.split('\n');
+}
+
+/**
+ *
+ */
+async function scrapeData() {
 	let userAgentHeaders = {
 		'user-agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
 		'upgrade-insecure-requests': '1',
@@ -58,6 +107,13 @@ dotenv.config();
 		return;
 	}
 
+	// save result sets
+	let _articleArchiveURLs = '';
+	for (const archiveURL of articleArchiveURLs) {
+		_articleArchiveURLs += archiveURL + ',\n';
+	}
+	await saveAsFile(`${Date.now()}-article-archive-urls`, _articleArchiveURLs, 'csv');
+
 	let articleURLs = [];
 	for (const archiveURL of articleArchiveURLs) {
 		const _page = await browser.newPage();
@@ -79,6 +135,13 @@ dotenv.config();
 			continue;
 		}
 
+		// save result sets
+		let _postURLs = '';
+		for (const postURL of postURLs) {
+			_postURLs += postURL + ',\n';
+		}
+		await saveAsFile(`${Date.now()}-${archiveURL}-urls`, _postURLs, 'csv');
+
 		articleURLs.concat(postURLs);
 		await _page.close();
 	}
@@ -96,22 +159,52 @@ dotenv.config();
 		}
 	}
 
-	stringify(
-		validArticleURLs,
-		{
-			header: true,
-			columns: {
-				URL: 'URL',
-			},
-		},
-		(err, output) => {
-			if (err) throw err;
-			fs.writeFile(outPutFileName, output, (err) => {
-				if (err) throw err;
-				console.log(`${outPutFileName} saved.`);
-			});
-		}
-	);
+	// save result sets
+	let _validArticleURLs = '';
+	for (const url of validArticleURLs) {
+		_validArticleURLs += url + ',\n';
+	}
+	await saveAsFile(`${Date.now()}-article-urls`, _validArticleURLs, 'csv');
 
+	// end
 	await browser.close();
+}
+
+/**
+ *
+ */
+async function scrapeDataV2() {
+	let userAgentHeaders = {
+		'user-agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+		'upgrade-insecure-requests': '1',
+		accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+		'accept-encoding': 'gzip, deflate, br',
+		'accept-language': 'en-US,en;q=0.9,en;q=0.8',
+	};
+
+	let data = await readFileAsCSV('sitemap.csv');
+	if (!data || data.length == 0) {
+		console.log('Source file returned empty data');
+		exit();
+	}
+
+	// create & open browser
+	puppeteer.use(pluginStealth());
+	const browser = await puppeteer.launch({ headless: false, executablePath: executablePath() });
+	for (const url of data) {
+		const page = await browser.newPage();
+		await page.setExtraHTTPHeaders(userAgentHeaders);
+		await page.goto(url, { timeout: 0, waitUntil: 'networkidle0' });
+		await page.setViewport({ width: 1080, height: 1024 });
+		const pageXML = await page.content();
+		await new Promise((r) => setTimeout(r, 10000));
+
+		await saveAsFile(`${Date.now()}-${url}-raw-urls`, pageXML, 'xml');
+		await page.close();
+	}
+	await browser.close();
+}
+
+(async () => {
+	await scrapeDataV2();
 })();
